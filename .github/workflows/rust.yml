@@ -1,0 +1,41 @@
+name: Build
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build_and_test:
+    name: Build MinQL Library
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macOS-latest ]
+        rust: [ stable, beta, nightly ]
+    steps:
+      - name: Check out Source
+        uses: actions/checkout@v2
+      - name: Setup Toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+      - name: Build Libraries
+        run: cargo build --release
+      - name: Test Libraries
+        env:
+          CI: 'True'
+          RUSTFLAGS: '-D warnings'
+        run: cargo test --release
+      - name: Build Rust Docs
+        run: cargo doc --release      
+      - name: Publish Library Docs
+        uses: peaceiris/actions-gh-pages@v4
+        if: ${{ github.ref == 'refs/heads/main' }}
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./target/doc
