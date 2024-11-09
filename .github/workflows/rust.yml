@@ -11,7 +11,7 @@ env:
 
 jobs:
   build_and_test:
-    name: Build MinQL Library
+    name: Build & Test MinQL Library
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
