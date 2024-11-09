@@ -17,7 +17,7 @@
 pub(crate) fn pct_encode(f: &mut std::fmt::Formatter<'_>, value: &str) -> std::fmt::Result {
     for ch in value.chars() {
         match ch as u8 {
-            45 | 46 | 95 | 126 | 65..=90 | 97..=122 => {
+            b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z' | b'-' | b'.' | b'_' | b'~' => {
                 write!(f, "{ch}")?;
             }
             n => {
