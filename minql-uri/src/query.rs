@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+use crate::utility::{pct_decode, pct_encode};
+
 /// Query
 ///
 /// Per [Wikipedia](https://en.wikipedia.org/wiki/Uniform_Resource_Identifier):
@@ -32,10 +34,29 @@ pub struct Query<'str> {
     /// Raw Unparsed Query String
     pub raw: &'str str,
     /// Query Parameters Split by `&` or ';' and parameters split by `=`
-    pub parameters: Vec<(&'str str, Vec<&'str str>)>,
+    pub parameters: Vec<(&'str str, Option<&'str str>)>,
 }
 
 impl<'str> Query<'str> {
+    /// Get Pct Decoded Raw `Query`.
+    ///
+    /// # Panics
+    /// May panic if parsing has a bug.
+    #[must_use]
+    pub fn raw(&self) -> String {
+        pct_decode(self.raw).unwrap()
+    }
+    /// Get Pct Decoded `Query` parameters.
+    ///
+    /// # Panics
+    /// May panic if parsing has a bug.
+    #[must_use]
+    pub fn parameters(&self) -> Vec<(String, Option<String>)> {
+        self.parameters
+            .iter()
+            .map(|(k, v)| (pct_decode(k).unwrap(), v.map(|v| pct_decode(v).unwrap())))
+            .collect()
+    }
     /// Convert a parsed `Query` into a `QueryBuilder`
     #[must_use]
     pub fn builder(&self) -> QueryBuilder {
@@ -43,12 +64,7 @@ impl<'str> Query<'str> {
             parameters: self
                 .parameters
                 .iter()
-                .map(|(key, values)| {
-                    (
-                        key.to_string(),
-                        values.iter().map(|value| value.to_string()).collect(),
-                    )
-                })
+                .map(|(key, value)| ((*key).to_string(), value.map(ToString::to_string)))
                 .collect(),
         }
     }
@@ -64,23 +80,19 @@ impl<'str> std::fmt::Display for Query<'str> {
 #[derive(Debug, Default)]
 pub struct QueryBuilder {
     /// Query Parameters Split by `&` or ';' and parameters split by `=`
-    pub parameters: Vec<(String, Vec<String>)>,
+    pub parameters: Vec<(String, Option<String>)>,
 }
 
-impl<'str> std::fmt::Display for QueryBuilder {
+impl std::fmt::Display for QueryBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut piter = self.parameters.iter().peekable();
-        while let Some((key, values)) = piter.next() {
-            write!(f, "{}=", key)?;
-            let mut viter = values.iter().peekable();
-            while let Some(value) = viter.next() {
-                if viter.peek().is_some() {
-                    write!(f, "{value},")?;
-                } else {
-                    write!(f, "{value}")?;
-                }
+        let mut iter = self.parameters.iter().peekable();
+        while let Some((key, value)) = iter.next() {
+            pct_encode(f, key)?;
+            if let Some(value) = value {
+                write!(f, "=")?;
+                pct_encode(f, value)?;
             }
-            if piter.peek().is_some() {
+            if iter.peek().is_some() {
                 write!(f, "&")?;
             }
         }

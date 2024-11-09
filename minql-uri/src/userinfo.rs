@@ -14,6 +14,9 @@
 // limitations under the License.
 //
 
+use crate::utility::{pct_decode, pct_encode};
+use std::fmt::Write;
+
 /// URI User Information
 #[derive(Debug)]
 pub enum UserInfo<'str> {
@@ -34,19 +37,53 @@ pub enum UserInfo<'str> {
 }
 
 impl<'str> UserInfo<'str> {
+    /// Get Pct Decoded Raw `UserInfo`.
+    ///
+    /// # Panics
+    /// May panic if parsing has a bug.
+    #[must_use]
+    pub fn raw(&self) -> String {
+        match self {
+            UserInfo::Unparsed { raw, .. } | UserInfo::Parsed { raw, .. } => {
+                pct_decode(raw).unwrap()
+            }
+        }
+    }
+    /// Get Pct Decoded username. If no password is present, raw is assumed to be username.
+    ///
+    /// # Panics
+    /// May panic if parsing has a bug.
+    #[must_use]
+    pub fn username(&self) -> String {
+        match self {
+            UserInfo::Unparsed { raw, .. } => pct_decode(raw).unwrap(),
+            UserInfo::Parsed { username, .. } => pct_decode(username).unwrap(),
+        }
+    }
+    /// Get Pct Decoded password if present.
+    ///
+    /// # Panics
+    /// May panic if parsing has a bug.
+    #[must_use]
+    pub fn password(&self) -> Option<String> {
+        match self {
+            UserInfo::Unparsed { .. } => None,
+            UserInfo::Parsed { password, .. } => password.map(|p| pct_decode(p).unwrap()),
+        }
+    }
     /// Convert a parsed `UserInfo` into a `UserInfoBuilder`
     #[must_use]
     pub fn builder(&self) -> UserInfoBuilder {
         match self {
             UserInfo::Unparsed { raw } => UserInfoBuilder {
-                username: String::from(*raw),
+                username: pct_decode(raw).unwrap_or_default(),
                 password: None,
             },
             UserInfo::Parsed {
                 username, password, ..
             } => UserInfoBuilder {
-                username: String::from(*username),
-                password: password.map(|p| String::from(p)),
+                username: pct_decode(username).unwrap_or_default(),
+                password: password.map(|p| pct_decode(p).unwrap_or_default()),
             },
         }
     }
@@ -55,8 +92,7 @@ impl<'str> UserInfo<'str> {
 impl<'str> std::fmt::Display for UserInfo<'str> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            UserInfo::Unparsed { raw } => write!(f, "{raw}"),
-            UserInfo::Parsed { raw, .. } => write!(f, "{raw}"),
+            UserInfo::Unparsed { raw } | UserInfo::Parsed { raw, .. } => write!(f, "{raw}"),
         }
     }
 }
@@ -72,9 +108,10 @@ pub struct UserInfoBuilder {
 
 impl std::fmt::Display for UserInfoBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.username)?;
+        pct_encode(f, self.username.as_str())?;
         if let Some(password) = &self.password {
-            write!(f, ":{}", password)?;
+            f.write_char(':')?;
+            pct_encode(f, password.as_str())?;
         }
         Ok(())
     }

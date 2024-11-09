@@ -66,3 +66,4 @@ mod result;
 mod scheme;
 mod uri;
 mod userinfo;
+mod utility;

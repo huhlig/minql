@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 
+use crate::utility::{pct_decode, pct_encode};
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 /// URI Host Information
@@ -50,15 +51,28 @@ pub enum HostInfo<'str> {
 impl<'str> std::fmt::Display for HostInfo<'str> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            HostInfo::RegistryName { raw } => write!(f, "{raw}"),
-            HostInfo::IPv4Address { raw, .. } => write!(f, "{raw}"),
-            HostInfo::IPv6Address { raw, .. } => write!(f, "{raw}"),
-            HostInfo::IPvFutureAddress { raw } => write!(f, "{raw}"),
+            HostInfo::RegistryName { raw }
+            | HostInfo::IPv4Address { raw, .. }
+            | HostInfo::IPv6Address { raw, .. }
+            | HostInfo::IPvFutureAddress { raw } => write!(f, "{raw}"),
         }
     }
 }
 
 impl<'str> HostInfo<'str> {
+    /// Get Pct Decoded Raw `Query`.
+    ///
+    /// # Panics
+    /// May panic if parsing has a bug.
+    #[must_use]
+    pub fn raw(&self) -> String {
+        match self {
+            HostInfo::RegistryName { raw } => pct_decode(raw).unwrap(),
+            HostInfo::IPv4Address { raw, .. }
+            | HostInfo::IPv6Address { raw, .. }
+            | HostInfo::IPvFutureAddress { raw } => (*raw).to_string(),
+        }
+    }
     /// Convert a parsed `HostInfo` into a `HostInfoBuilder`
     #[must_use]
     pub fn builder(&self) -> HostInfoBuilder {
@@ -115,7 +129,7 @@ impl Default for HostInfoBuilder {
 impl std::fmt::Display for HostInfoBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            HostInfoBuilder::RegistryName { hostname } => write!(f, "{hostname}"),
+            HostInfoBuilder::RegistryName { hostname } => pct_encode(f, hostname),
             HostInfoBuilder::IPv4Address { ipaddr } => write!(f, "{ipaddr}"),
             HostInfoBuilder::IPv6Address { ipaddr } => write!(f, "[{ipaddr}]"),
             HostInfoBuilder::IPvFutureAddress { address } => write!(f, "[{address}]"),
