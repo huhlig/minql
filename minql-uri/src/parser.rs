@@ -612,10 +612,11 @@ where
     let (input, query_string) = recognize(alt((pchar, one_of("/?"))))(input)?;
     let (_, query_pairs) = separated_list0(
         one_of("&;"),
-        separated_pair(
+        pair(
             recognize(many1(query_char)),
-            nchar('='),
-            separated_list0(nchar(','), recognize(many0(query_char))),
+            map(opt(pair(nchar('='), recognize(many0(query_char)))), |a| {
+                a.map(|a| a.1)
+            }),
         ),
     )(query_string)?;
     Ok((

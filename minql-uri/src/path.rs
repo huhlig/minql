@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+use crate::utility::{pct_decode, pct_encode};
+
 /// URI Path
 ///
 /// Per [Wikipedia](https://en.wikipedia.org/wiki/Uniform_Resource_Identifier):
@@ -140,12 +142,16 @@ pub enum PathBuilder {
 
 impl PathBuilder {
     /// Get Slices of Segments in Path
+    ///
+    /// # Panics
+    /// May Panic if there is a bug in Parsing
     #[must_use]
-    pub fn segments(&self) -> &[String] {
+    pub fn segments(&self) -> Vec<String> {
         match self {
-            PathBuilder::Empty => &[],
-            PathBuilder::Absolute { segments, .. } => segments.as_slice(),
-            PathBuilder::Relative { segments, .. } => segments.as_slice(),
+            PathBuilder::Empty => Vec::default(),
+            PathBuilder::Absolute { segments, .. } | PathBuilder::Relative { segments, .. } => {
+                segments.iter().map(|s| pct_decode(s).unwrap()).collect()
+            }
         }
     }
 
@@ -196,13 +202,13 @@ impl std::fmt::Display for PathBuilder {
             PathBuilder::Absolute { segments } => {
                 write!(f, "/")?;
                 for segment in segments {
-                    write!(f, "{segment}")?;
+                    pct_encode(f, segment)?;
                 }
             }
             PathBuilder::Relative { segments } => {
                 write!(f, "./")?;
                 for segment in segments {
-                    write!(f, "{segment}")?;
+                    pct_encode(f, segment)?;
                 }
             }
         }

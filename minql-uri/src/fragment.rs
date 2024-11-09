@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+use crate::utility::{pct_decode, pct_encode};
+
 /// # URI Fragment
 ///
 /// Per [Wikipedia](https://en.wikipedia.org/wiki/Uniform_Resource_Identifier):
@@ -40,6 +42,14 @@ impl<'str> std::fmt::Display for Fragment<'str> {
 }
 
 impl<'str> Fragment<'str> {
+    /// Get Pct Decoded Fragment
+    /// 
+    /// # Panics
+    /// May Panic if Parser has a bug.
+    #[must_use]
+    pub fn fragment(fragment: &'str str) -> String {
+        pct_decode(fragment).unwrap()
+    }
     /// Convert Parsed `Fragment` into a `FragmentBuilder`
     #[must_use]
     pub fn builder(&self) -> FragmentBuilder {
@@ -58,6 +68,6 @@ pub struct FragmentBuilder {
 
 impl std::fmt::Display for FragmentBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.fragment)
+        pct_encode(f, self.fragment.as_str())
     }
 }
