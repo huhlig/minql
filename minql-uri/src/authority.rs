@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+use crate::hostinfo::HostInfoBuilder;
+use crate::userinfo::UserInfoBuilder;
 use crate::{hostinfo::HostInfo, userinfo::UserInfo};
 
 /// Uniform Resource Authority
@@ -30,17 +32,72 @@ use crate::{hostinfo::HostInfo, userinfo::UserInfo};
 /// must be enclosed in brackets ([]).
 /// > * An optional port subcomponent preceded by a colon (:), consisting of decimal digits.  
 ///
-/// ```bnf
+/// ## ABNF Grammar
+/// ```abnf
 /// authority = [userinfo "@"] host [":" port]
 /// ```
 #[derive(Debug)]
 pub struct Authority<'str> {
     /// Raw unparsed Authority String
-    pub string: &'str str,
+    pub raw: &'str str,
     /// Authority User Information
     pub userinfo: Option<UserInfo<'str>>,
     /// Authority Host Information
     pub hostinfo: HostInfo<'str>,
     /// Authority Port Number
     pub port: Option<u16>,
+}
+
+impl<'str> Authority<'str> {
+    /// Convert Parsed Authority into a Builder
+    #[must_use]  
+    pub fn builder(&self) -> AuthorityBuilder {
+        AuthorityBuilder {
+            userinfo: self.userinfo.as_ref().map(UserInfo::builder),
+            hostinfo: self.hostinfo.builder(),
+            port: self.port,
+        }
+    }
+}
+
+impl<'str> std::fmt::Display for Authority<'str> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.raw)
+    }
+}
+
+/// URI Authority Builder
+#[derive(Debug)]
+pub struct AuthorityBuilder {
+    /// Authority User Information
+    pub userinfo: Option<UserInfoBuilder>,
+    /// Authority Host Information
+    pub hostinfo: HostInfoBuilder,
+    /// Authority Port Number
+    pub port: Option<u16>,
+}
+
+impl std::fmt::Display for AuthorityBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(ui) = &self.userinfo {
+            write!(f, "{ui}@")?;
+        }
+        write!(f, "{}", self.hostinfo)?;
+        if let Some(port) = &self.port {
+            write!(f, ":{}", port)?;
+        }
+        Ok(())
+    }
+}
+
+impl Default for AuthorityBuilder {
+    fn default() -> Self {
+        AuthorityBuilder {
+            userinfo: None,
+            hostinfo: HostInfoBuilder::RegistryName {
+                hostname: String::default(),
+            },
+            port: None,
+        }
+    }
 }
