@@ -95,8 +95,8 @@ where
             opt(preceded(nchar('?'), query)),
             opt(preceded(nchar('#'), fragment)),
         ))),
-        |(string, (scheme, (authority, path), query, fragment))| URI {
-            string,
+        |(raw, (scheme, (authority, path), query, fragment))| URI {
+            raw,
             scheme,
             authority,
             path,
@@ -158,8 +158,8 @@ where
             opt(preceded(nchar('?'), query)),
             opt(preceded(nchar('#'), fragment)),
         ))),
-        |(string, ((authority, path), query, fragment))| URIRelativeReference {
-            string,
+        |(raw, ((authority, path), query, fragment))| URIRelativeReference {
+            raw,
             authority,
             path,
             query,
@@ -224,8 +224,8 @@ where
             host,
             opt(preceded(nchar(':'), port)),
         ))),
-        |(string, (userinfo, hostinfo, port))| Authority {
-            string,
+        |(raw, (userinfo, hostinfo, port))| Authority {
+            raw,
             userinfo,
             hostinfo,
             port,
@@ -254,26 +254,26 @@ where
         sub_delims,
         nchar(':'),
     ))));
-    let (input, string) = recognize(many1(alt((
+    let (input, raw) = recognize(many1(alt((
         unreserved,
         pct_encoded,
         sub_delims,
         nchar(':'),
     ))))(input)?;
     let res: IResult<&str, (&str, Option<&str>), E> =
-        pair(username, opt(map(pair(nchar(':'), password), |(_, a)| a)))(string);
+        pair(username, opt(map(pair(nchar(':'), password), |(_, a)| a)))(raw);
 
     if let Ok((_, (username, password))) = res {
         Ok((
             input,
             UserInfo::Parsed {
-                string,
+                raw,
                 username,
                 password,
             },
         ))
     } else {
-        Ok((input, UserInfo::Unparsed(string)))
+        Ok((input, UserInfo::Unparsed { raw }))
     }
 }
 
@@ -288,20 +288,20 @@ where
 {
     // TODO: Fix Weird Parsing
     alt((
-        map(delimited(nchar('['), ip_v6_address, nchar(']')), |string| {
+        map(delimited(nchar('['), ip_v6_address, nchar(']')), |raw| {
             HostInfo::IPv6Address {
-                string,
-                ipaddr: Ipv6Addr::from_str(string).unwrap(),
+                raw,
+                ipaddr: Ipv6Addr::from_str(raw).unwrap(),
             }
         }),
-        map(delimited(nchar('['), ip_v_future, nchar(']')), |string| {
-            HostInfo::IPvFutureAddress { string }
+        map(delimited(nchar('['), ip_v_future, nchar(']')), |raw| {
+            HostInfo::IPvFutureAddress { raw }
         }),
-        map(ip_v4_address, |string| HostInfo::IPv4Address {
-            string,
-            ipaddr: Ipv4Addr::from_str(string).unwrap(),
+        map(ip_v4_address, |raw| HostInfo::IPv4Address {
+            raw,
+            ipaddr: Ipv4Addr::from_str(raw).unwrap(),
         }),
-        map(reg_name, |string| HostInfo::RegistryName { string }),
+        map(reg_name, |raw| HostInfo::RegistryName { raw }),
     ))(input)
 }
 
@@ -478,14 +478,14 @@ fn path_absolute<'str, E>(input: &'str str) -> IResult<&'str str, Path<'str>, E>
 where
     E: ParseError<&'str str>,
 {
-    let (input, (string, (seg_nz, segs))) = consumed(preceded(
+    let (input, (raw, (seg_nz, segs))) = consumed(preceded(
         nchar('/'),
         pair(segment_nz, many0(preceded(nchar('/'), segment))),
     ))(input)?;
     let mut segments = Vec::with_capacity(1 + segs.len());
     segments.push(seg_nz);
     segments.extend(segs);
-    Ok((input, Path::Absolute { string, segments }))
+    Ok((input, Path::Absolute { raw, segments }))
 }
 
 /// ```abnf
@@ -496,12 +496,12 @@ fn path_noscheme<'str, E>(input: &'str str) -> IResult<&'str str, Path<'str>, E>
 where
     E: ParseError<&'str str>,
 {
-    let (input, (string, (seg_nz, segs))) =
+    let (input, (raw, (seg_nz, segs))) =
         consumed(pair(segment_nz_nc, many0(preceded(nchar('/'), segment))))(input)?;
     let mut segments = Vec::with_capacity(1 + segs.len());
     segments.push(seg_nz);
     segments.extend(segs);
-    Ok((input, Path::NoScheme { string, segments }))
+    Ok((input, Path::NoScheme { raw, segments }))
 }
 
 /// ```abnf
@@ -512,12 +512,12 @@ fn path_rootless<'str, E>(input: &'str str) -> IResult<&'str str, Path<'str>, E>
 where
     E: ParseError<&'str str>,
 {
-    let (input, (string, (seg_nz, segs))) =
+    let (input, (raw, (seg_nz, segs))) =
         consumed(pair(segment_nz, many0(preceded(nchar('/'), segment))))(input)?;
     let mut segments = Vec::with_capacity(1 + segs.len());
     segments.push(seg_nz);
     segments.extend(segs);
-    Ok((input, Path::Rootless { string, segments }))
+    Ok((input, Path::Rootless { raw, segments }))
 }
 
 /// ```abnf
@@ -528,8 +528,8 @@ fn path_abempty<'str, E>(input: &'str str) -> IResult<&'str str, Path<'str>, E>
 where
     E: ParseError<&'str str>,
 {
-    let (input, (string, segments)) = consumed(many0(preceded(nchar('/'), segment)))(input)?;
-    Ok((input, Path::AbEmpty { string, segments }))
+    let (input, (raw, segments)) = consumed(many0(preceded(nchar('/'), segment)))(input)?;
+    Ok((input, Path::AbEmpty { raw, segments }))
 }
 
 /// ```abnf
@@ -621,7 +621,7 @@ where
     Ok((
         input,
         Query {
-            string: query_string,
+            raw: query_string,
             parameters: query_pairs,
         },
     ))
@@ -643,8 +643,8 @@ fn fragment<'str, E>(input: &'str str) -> IResult<&'str str, Fragment<'str>, E>
 where
     E: ParseError<&'str str>,
 {
-    let (input, frag) = recognize(many1(alt((pchar, one_of("/?")))))(input)?;
-    Ok((input, Fragment(frag)))
+    let (input, raw) = recognize(many1(alt((pchar, one_of("/?")))))(input)?;
+    Ok((input, Fragment { fragment: raw }))
 }
 
 /// Percentage Encoded u32 codepoint.
@@ -767,33 +767,32 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::URI;
-
-    const TEST_URIS: [&str; 18] = [
-        "http://example.com",
-        "json://example.com:8996/",
-        "socket://testuser:testpass@www.example.com",
-        "https://example.com/",
-        "https://example.com/path/to/thing",
-        "https://example.com:8912/path/to/thing",
-        "https://example.com/path/to/thing?hi=bye&ho=no",
-        "https://example.com/path/to/thing?hi=bye&ho=no#test",
-        "docs://example.com/path/to/thing#fraggy",
-        "file:///path/to/thing?hi=bye&ho=no",
-        "https://john.doe@www.example.com:1234/forum/questions/?tag=networking&order=newest#top",
-        "https://john.doe@www.example.com:1234/forum/questions/?tag=networking&order=newest#:~:text=whatever",
-        "ldap://[2001:db8::7]/c=GB?objectClass?one",
-        "mailto:John.Doe@example.com",
-        "news:comp.infosystems.www.servers.unix",
-        "tel:+1-816-555-1212",
-        "telnet://192.0.2.16:80/",
-        "urn:oasis:names:specification:docbook:dtd:xml:4.1.2"
-    ];
+    use crate::{Path, URI};
 
     #[test]
     #[tracing_test::traced_test]
     fn test_uri_parsing() {
         let mut failures = 0;
+        const TEST_URIS: [&str; 18] = [
+            "http://example.com",
+            "json://example.com:8996/",
+            "socket://testuser:testpass@www.example.com",
+            "https://example.com/",
+            "https://example.com/path/to/thing",
+            "https://example.com:8912/path/to/thing",
+            "https://example.com/path/to/thing?hi=bye&ho=no",
+            "https://example.com/path/to/thing?hi=bye&ho=no#test",
+            "docs://example.com/path/to/thing#fraggy",
+            "file:///path/to/thing?hi=bye&ho=no",
+            "https://john.doe@www.example.com:1234/forum/questions/?tag=networking&order=newest#top",
+            "https://john.doe@www.example.com:1234/forum/questions/?tag=networking&order=newest#:~:text=whatever",
+            "ldap://[2001:db8::7]/c=GB?objectClass?one",
+            "mailto:John.Doe@example.com",
+            "news:comp.infosystems.www.servers.unix",
+            "tel:+1-816-555-1212",
+            "telnet://192.0.2.16:80/",
+            "urn:oasis:names:specification:docbook:dtd:xml:4.1.2"
+        ];
         for (idx, str) in TEST_URIS.iter().enumerate() {
             match URI::parse(str) {
                 Ok(uri) => {
@@ -810,10 +809,11 @@ mod tests {
 
     #[test]
     #[tracing_test::traced_test]
-    fn test_parsing() {
+    fn test_path_parsing() {
         let mut failures = 0;
-        for (idx, str) in TEST_URIS.iter().enumerate() {
-            match URI::parse(str) {
+        const TEST_PATHS: [&str; 2] = ["/usr/lib/minql", "/usr/lib/minql/file123.lib"];
+        for (idx, str) in TEST_PATHS.iter().enumerate() {
+            match Path::parse(str) {
                 Ok(uri) => {
                     tracing::info!("{idx} '{str}' => {uri:#?}");
                 }

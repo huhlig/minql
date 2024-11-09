@@ -24,3 +24,72 @@ pub enum Scheme<'str> {
     /// Other Scheme
     Other(&'str str),
 }
+
+impl<'str> Scheme<'str> {
+    /// Convert a parsed `Scheme` into a `SchemeBuilder`
+    #[must_use]
+    pub fn builder(&self) -> SchemeBuilder {
+        match self {
+            Scheme::HTTP => SchemeBuilder::HTTP,
+            Scheme::HTTPS => SchemeBuilder::HTTPS,
+            Scheme::Other(str) => SchemeBuilder::Other(String::from(*str)),
+        }
+    }
+}
+
+impl<'str> std::fmt::Display for Scheme<'str> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Scheme::HTTP => write!(f, "http"),
+            Scheme::HTTPS => write!(f, "https"),
+            Scheme::Other(str) => write!(f, "{str}"),
+        }
+    }
+}
+
+impl<'str> AsRef<str> for Scheme<'str> {
+    fn as_ref(&self) -> &str {
+        match self {
+            Scheme::HTTP => "http",
+            Scheme::HTTPS => "https",
+            Scheme::Other(str) => str,
+        }
+    }
+}
+
+/// URI Scheme Builder
+#[derive(Debug)]
+pub enum SchemeBuilder {
+    /// HTTP Scheme
+    HTTP,
+    /// HTTPS Scheme
+    HTTPS,
+    /// Other Scheme
+    Other(String),
+}
+
+impl Default for SchemeBuilder {
+    fn default() -> Self {
+        SchemeBuilder::Other(String::from("scheme"))
+    }
+}
+
+impl std::fmt::Display for SchemeBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SchemeBuilder::HTTP => write!(f, "http"),
+            SchemeBuilder::HTTPS => write!(f, "https"),
+            SchemeBuilder::Other(str) => write!(f, "{str}"),
+        }
+    }
+}
+
+impl AsRef<str> for SchemeBuilder {
+    fn as_ref(&self) -> &str {
+        match self {
+            SchemeBuilder::HTTP => "http",
+            SchemeBuilder::HTTPS => "https",
+            SchemeBuilder::Other(str) => str,
+        }
+    }
+}

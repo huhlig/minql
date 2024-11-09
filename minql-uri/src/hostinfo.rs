@@ -18,31 +18,107 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 
 /// URI Host Information
 ///
-/// Hostname or IPAddress of Authority
+/// Hostname or IP Address of Authority
 #[derive(Debug)]
 pub enum HostInfo<'str> {
     /// Named Host
     RegistryName {
         /// DNS Named Host
-        string: &'str str
+        raw: &'str str,
     },
     /// IPv4 Address
     IPv4Address {
         /// Raw String Address
-        string: &'str str,
+        raw: &'str str,
         /// Parsed IPv4 Address
-        ipaddr: Ipv4Addr
+        ipaddr: Ipv4Addr,
     },
     /// IPv6 Address
     IPv6Address {
         /// Raw String Address
-        string: &'str str,
+        raw: &'str str,
         /// Parsed IPv6 Address
-        ipaddr: Ipv6Addr
+        ipaddr: Ipv6Addr,
     },
-    /// IPvFuture Address
+    /// `IPvFuture` Address
     IPvFutureAddress {
         /// Raw String Address
-        string: &'str str
+        raw: &'str str,
     },
+}
+
+impl<'str> std::fmt::Display for HostInfo<'str> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HostInfo::RegistryName { raw } => write!(f, "{raw}"),
+            HostInfo::IPv4Address { raw, .. } => write!(f, "{raw}"),
+            HostInfo::IPv6Address { raw, .. } => write!(f, "{raw}"),
+            HostInfo::IPvFutureAddress { raw } => write!(f, "{raw}"),
+        }
+    }
+}
+
+impl<'str> HostInfo<'str> {
+    /// Convert a parsed `HostInfo` into a `HostInfoBuilder`
+    #[must_use]
+    pub fn builder(&self) -> HostInfoBuilder {
+        match self {
+            HostInfo::RegistryName { raw: string } => HostInfoBuilder::RegistryName {
+                hostname: (*string).to_string(),
+            },
+            HostInfo::IPv4Address { ipaddr, .. } => {
+                HostInfoBuilder::IPv4Address { ipaddr: *ipaddr }
+            }
+            HostInfo::IPv6Address { ipaddr, .. } => {
+                HostInfoBuilder::IPv6Address { ipaddr: *ipaddr }
+            }
+            HostInfo::IPvFutureAddress { raw: string } => HostInfoBuilder::IPvFutureAddress {
+                address: (*string).to_string(),
+            },
+        }
+    }
+}
+
+/// URI Host Info Builder
+#[derive(Debug)]
+pub enum HostInfoBuilder {
+    /// Named Host
+    RegistryName {
+        /// DNS Named Host
+        hostname: String,
+    },
+    /// IPv4 Address
+    IPv4Address {
+        /// Parsed IPv4 Address
+        ipaddr: Ipv4Addr,
+    },
+    /// IPv6 Address
+    IPv6Address {
+        /// Parsed IPv6 Address
+        ipaddr: Ipv6Addr,
+    },
+    /// `IPvFuture` Address
+    IPvFutureAddress {
+        /// Raw String Address
+        address: String,
+    },
+}
+
+impl Default for HostInfoBuilder {
+    fn default() -> Self {
+        HostInfoBuilder::RegistryName {
+            hostname: "localhost".to_string(),
+        }
+    }
+}
+
+impl std::fmt::Display for HostInfoBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HostInfoBuilder::RegistryName { hostname } => write!(f, "{hostname}"),
+            HostInfoBuilder::IPv4Address { ipaddr } => write!(f, "{ipaddr}"),
+            HostInfoBuilder::IPv6Address { ipaddr } => write!(f, "[{ipaddr}]"),
+            HostInfoBuilder::IPvFutureAddress { address } => write!(f, "[{address}]"),
+        }
+    }
 }

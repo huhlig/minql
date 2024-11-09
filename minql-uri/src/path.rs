@@ -34,6 +34,7 @@
 /// > web server; this is often used to select dynamic content (a document, etc.) or to tailor it
 /// > as requested (see also: CGI and PATH_INFO, etc.).
 ///
+/// ## Example:
 /// ```rust
 /// // TODO: Improve Examples
 /// use minql_uri::Path;
@@ -42,7 +43,7 @@
 /// println!("{:?}", path);
 /// ```
 ///
-///
+/// ## ABNF Form:
 /// ```abnf
 /// path          = path-abempty    ; begins with "/" or is empty
 ///               / path-absolute   ; begins with "/" but not "//!"
@@ -58,59 +59,153 @@ pub enum Path<'str> {
     /// Path begins with "/" or is empty
     AbEmpty {
         /// Raw String
-        string: &'str str,
+        raw: &'str str,
         /// Path Segments
         segments: Vec<&'str str>,
     },
     /// Path begins with "/" but not "//!"
     Absolute {
         /// Raw String
-        string: &'str str,
+        raw: &'str str,
         /// Path Segments
         segments: Vec<&'str str>,
     },
     /// Path begins with a non-colon segment
     NoScheme {
         /// Raw String
-        string: &'str str,
+        raw: &'str str,
         /// Path Segments
         segments: Vec<&'str str>,
     },
     /// Path begins with a segment
     Rootless {
         /// Raw String
-        string: &'str str,
+        raw: &'str str,
         /// Path Segments
         segments: Vec<&'str str>,
     },
 }
 
-impl Path<'_> {
-    /// Return back raw str slice of parsed path
-    pub fn as_str(&self) -> &str {
+impl<'str> std::fmt::Display for Path<'str> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Path::Empty => &"",
-            Path::AbEmpty { string, .. } => string,
-            Path::Absolute { string, .. } => string,
-            Path::NoScheme { string, .. } => string,
-            Path::Rootless { string, .. } => string,
-        }
-    }
-
-    /// Return back array of path segments
-    pub fn segments(&self) -> &[&str] {
-        match self {
-            Path::Empty => &[],
-            Path::AbEmpty { segments, .. } => segments.as_slice(),
-            Path::Absolute { segments, .. } => segments.as_slice(),
-            Path::NoScheme { segments, .. } => segments.as_slice(),
-            Path::Rootless { segments, .. } => segments.as_slice(),
+            Path::Empty => write!(f, ""),
+            Path::AbEmpty { raw, .. } => write!(f, "{raw}"),
+            Path::Absolute { raw, .. } => write!(f, "{raw}"),
+            Path::NoScheme { raw, .. } => write!(f, "{raw}"),
+            Path::Rootless { raw, .. } => write!(f, "{raw}"),
         }
     }
 }
 
-impl std::fmt::Display for Path<'_> {
+impl<'str> Path<'str> {
+    /// Convert the parsed `Path` into a `PathBuilder`
+    #[must_use]
+    pub fn builder(&self) -> PathBuilder {
+        match self {
+            Path::Empty => PathBuilder::Empty,
+            Path::AbEmpty { segments, .. } => PathBuilder::Absolute {
+                segments: segments.iter().map(ToString::to_string).collect(),
+            },
+            Path::Absolute { segments, .. } => PathBuilder::Absolute {
+                segments: segments.iter().map(ToString::to_string).collect(),
+            },
+            Path::NoScheme { segments, .. } => PathBuilder::Absolute {
+                segments: segments.iter().map(ToString::to_string).collect(),
+            },
+            Path::Rootless { segments, .. } => PathBuilder::Absolute {
+                segments: segments.iter().map(ToString::to_string).collect(),
+            },
+        }
+    }
+}
+
+/// URI Path Builder
+#[derive(Debug, Default)]
+pub enum PathBuilder {
+    /// Empty Path Builder
+    #[default]
+    Empty,
+    /// Absolute Path starting with '/'
+    Absolute {
+        /// Path Segments
+        segments: Vec<String>,
+    },
+    /// Relative Path starting with './' or Empty
+    Relative {
+        /// Path Segments
+        segments: Vec<String>,
+    },
+}
+
+impl PathBuilder {
+    /// Get Slices of Segments in Path
+    #[must_use]
+    pub fn segments(&self) -> &[String] {
+        match self {
+            PathBuilder::Empty => &[],
+            PathBuilder::Absolute { segments, .. } => segments.as_slice(),
+            PathBuilder::Relative { segments, .. } => segments.as_slice(),
+        }
+    }
+
+    /// Return back parent path
+    #[must_use]
+    pub fn parent(&self) -> PathBuilder {
+        match self {
+            PathBuilder::Empty => PathBuilder::Empty,
+            PathBuilder::Absolute { segments, .. } => {
+                let mut segments = segments.clone();
+                segments.pop();
+                PathBuilder::Absolute { segments }
+            }
+            PathBuilder::Relative { segments, .. } => {
+                let mut segments = segments.clone();
+                if segments.is_empty() {
+                    segments.push(String::from(".."));
+                } else {
+                    segments.pop();
+                }
+                PathBuilder::Relative { segments }
+            }
+        }
+    }
+    /// Return back a child path
+    #[must_use]
+    pub fn child(&self, child: &str) -> PathBuilder {
+        match self {
+            PathBuilder::Empty => PathBuilder::Empty,
+            PathBuilder::Absolute { segments, .. } => {
+                let mut segments = segments.clone();
+                segments.push(String::from(child));
+                PathBuilder::Absolute { segments }
+            }
+            PathBuilder::Relative { segments, .. } => {
+                let mut segments = segments.clone();
+                segments.push(String::from(child));
+                PathBuilder::Relative { segments }
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for PathBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
+        match self {
+            PathBuilder::Empty => write!(f, "")?,
+            PathBuilder::Absolute { segments } => {
+                write!(f, "/")?;
+                for segment in segments {
+                    write!(f, "{segment}")?;
+                }
+            }
+            PathBuilder::Relative { segments } => {
+                write!(f, "./")?;
+                for segment in segments {
+                    write!(f, "{segment}")?;
+                }
+            }
+        }
+        Ok(())
     }
 }

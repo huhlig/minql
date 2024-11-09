@@ -30,7 +30,60 @@
 #[derive(Debug)]
 pub struct Query<'str> {
     /// Raw Unparsed Query String
-    pub string: &'str str,
+    pub raw: &'str str,
     /// Query Parameters Split by `&` or ';' and parameters split by `=`
     pub parameters: Vec<(&'str str, Vec<&'str str>)>,
+}
+
+impl<'str> Query<'str> {
+    /// Convert a parsed `Query` into a `QueryBuilder`
+    #[must_use]
+    pub fn builder(&self) -> QueryBuilder {
+        QueryBuilder {
+            parameters: self
+                .parameters
+                .iter()
+                .map(|(key, values)| {
+                    (
+                        key.to_string(),
+                        values.iter().map(|value| value.to_string()).collect(),
+                    )
+                })
+                .collect(),
+        }
+    }
+}
+
+impl<'str> std::fmt::Display for Query<'str> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.raw)
+    }
+}
+
+/// Query Builder
+#[derive(Debug, Default)]
+pub struct QueryBuilder {
+    /// Query Parameters Split by `&` or ';' and parameters split by `=`
+    pub parameters: Vec<(String, Vec<String>)>,
+}
+
+impl<'str> std::fmt::Display for QueryBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut piter = self.parameters.iter().peekable();
+        while let Some((key, values)) = piter.next() {
+            write!(f, "{}=", key)?;
+            let mut viter = values.iter().peekable();
+            while let Some(value) = viter.next() {
+                if viter.peek().is_some() {
+                    write!(f, "{value},")?;
+                } else {
+                    write!(f, "{value}")?;
+                }
+            }
+            if piter.peek().is_some() {
+                write!(f, "&")?;
+            }
+        }
+        Ok(())
+    }
 }

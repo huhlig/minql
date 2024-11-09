@@ -43,15 +43,18 @@
     clippy::missing_errors_doc
 )]
 
-pub use self::authority::Authority;
-pub use self::fragment::Fragment;
-pub use self::hostinfo::HostInfo;
-pub use self::path::Path;
-pub use self::query::Query;
+pub use self::authority::{Authority, AuthorityBuilder};
+pub use self::fragment::{Fragment, FragmentBuilder};
+pub use self::hostinfo::{HostInfo, HostInfoBuilder};
+pub use self::path::{Path, PathBuilder};
+pub use self::query::{Query, QueryBuilder};
 pub use self::result::{URIError, URIResult};
-pub use self::scheme::Scheme;
-pub use self::uri::{URIReference, URIRelativeReference, URI};
-pub use self::userinfo::UserInfo;
+pub use self::scheme::{Scheme, SchemeBuilder};
+pub use self::uri::{
+    URIBuilder, URIReference, URIReferenceBuilder, URIRelativeReference,
+    URIRelativeReferenceBuilder, URI,
+};
+pub use self::userinfo::{UserInfo, UserInfoBuilder};
 
 mod authority;
 mod fragment;

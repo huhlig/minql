@@ -28,4 +28,36 @@
 /// ```
 ///
 #[derive(Debug)]
-pub struct Fragment<'str>(pub &'str str);
+pub struct Fragment<'str> {
+    /// Fragment Value
+    pub fragment: &'str str,
+}
+
+impl<'str> std::fmt::Display for Fragment<'str> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.fragment)
+    }
+}
+
+impl<'str> Fragment<'str> {
+    /// Convert Parsed `Fragment` into a `FragmentBuilder`
+    #[must_use]
+    pub fn builder(&self) -> FragmentBuilder {
+        FragmentBuilder {
+            fragment: self.fragment.to_string(),
+        }
+    }
+}
+
+/// URI Fragment Builder
+#[derive(Debug, Default)]
+pub struct FragmentBuilder {
+    /// Fragment Value
+    pub fragment: String,
+}
+
+impl std::fmt::Display for FragmentBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.fragment)
+    }
+}
