@@ -43,12 +43,12 @@ impl<'str> std::fmt::Display for Fragment<'str> {
 
 impl<'str> Fragment<'str> {
     /// Get Pct Decoded Fragment
-    /// 
+    ///
     /// # Panics
     /// May Panic if Parser has a bug.
     #[must_use]
-    pub fn fragment(fragment: &'str str) -> String {
-        pct_decode(fragment).unwrap()
+    pub fn fragment(&self) -> String {
+        pct_decode(self.fragment).unwrap()
     }
     /// Convert Parsed `Fragment` into a `FragmentBuilder`
     #[must_use]
