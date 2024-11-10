@@ -40,7 +40,7 @@ pub struct LocalFileSystem {
 }
 
 impl LocalFileSystem {
-    /// Create a new LocalFileSystem with the provided root path.
+    /// Create a new `LocalFileSystem` with the provided root path.
     pub fn new<T: AsRef<std::path::Path>>(root: T) -> Self {
         LocalFileSystem {
             root: root.as_ref().to_path_buf(),
@@ -146,7 +146,7 @@ impl FileSystem for LocalFileSystem {
     }
 }
 
-/// Local File Handle
+/// Local `FileHandle`
 pub struct LocalFileHandle {
     path: std::path::PathBuf,
     file: std::fs::File,
@@ -228,9 +228,9 @@ impl FileHandle for LocalFileHandle {
     #[tracing::instrument(level = "trace")]
     fn set_lock_status(&mut self, mode: FileLockMode) -> FileSystemResult<()> {
         match mode {
-            FileLockMode::Unlocked => self.file.unlock(),
-            FileLockMode::Shared => self.file.lock_shared(),
-            FileLockMode::Exclusive => self.file.lock_exclusive(),
+            FileLockMode::Unlocked => FileExt::unlock(&self.file),
+            FileLockMode::Shared => FileExt::lock_shared(&self.file),
+            FileLockMode::Exclusive => FileExt::lock_exclusive(&self.file),
         }
         .map_err(io_error_to_file_system_error)
     }

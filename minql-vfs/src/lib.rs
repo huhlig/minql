@@ -14,6 +14,11 @@
 // limitations under the License.
 //
 
+//! Virtual File System
+//!
+//!
+//!
+
 #![forbid(unsafe_code)]
 #![warn(
     clippy::cargo,

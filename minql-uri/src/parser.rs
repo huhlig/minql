@@ -548,7 +548,7 @@ where
 /// segment       = *pchar
 /// ```
 #[tracing::instrument(level = "trace")]
-fn segment<'str, E>(input: &'str str) -> IResult<&'str str, &str, E>
+fn segment<'str, E>(input: &'str str) -> IResult<&'str str, &'str str, E>
 where
     E: ParseError<&'str str>,
 {
@@ -558,7 +558,7 @@ where
 /// segment-nz    = 1*pchar
 /// ```
 #[tracing::instrument(level = "trace")]
-fn segment_nz<'str, E>(input: &'str str) -> IResult<&'str str, &str, E>
+fn segment_nz<'str, E>(input: &'str str) -> IResult<&'str str, &'str str, E>
 where
     E: ParseError<&'str str>,
 {
@@ -570,7 +570,7 @@ where
 /// non-zero-length segment without any colon ":"
 /// ```
 #[tracing::instrument(level = "trace")]
-fn segment_nz_nc<'str, E>(input: &'str str) -> IResult<&'str str, &str, E>
+fn segment_nz_nc<'str, E>(input: &'str str) -> IResult<&'str str, &'str str, E>
 where
     E: ParseError<&'str str>,
 {

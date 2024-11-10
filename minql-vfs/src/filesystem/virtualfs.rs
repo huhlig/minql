@@ -26,6 +26,8 @@ use std::sync::{Arc, RwLock};
 pub struct VirtualFileSystemManager(RwLock<HashMap<String, Arc<dyn DynamicFileSystemProvider>>>);
 
 impl VirtualFileSystemManager {
+    /// Register a new Filesystem Provider
+    #[tracing::instrument(level = "trace")]
     pub fn register<T: FileSystemProvider>(&self, provider: T) -> FileSystemResult<()> {
         let mut lock = self.0.write().unwrap();
         let provider = Arc::new(provider);
@@ -34,6 +36,9 @@ impl VirtualFileSystemManager {
         }
         Ok(())
     }
+
+    /// Get Filesystem for Path
+    #[tracing::instrument(level = "trace")]
     pub fn get(&self, path: &str) -> FileSystemResult<VirtualFileSystem> {
         let lock = self.0.read().unwrap();
         let uri = URI::parse(path).map_err(|a| FileSystemError::WrappedError(Box::new(a)))?;
@@ -44,11 +49,14 @@ impl VirtualFileSystemManager {
     }
 }
 
-/// Virtual FileSystem Handle
+/// Virtual `FileSystem` Handle
 #[derive(Debug)]
 pub struct VirtualFileSystem(Arc<dyn DynamicFileSystem>);
 
 impl VirtualFileSystem {
+    /// Create a new Virtual Filesystem around a Filesystem implementation.
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     pub fn new<F: FileSystem>(filesystem: F) -> VirtualFileSystem {
         Self(Arc::new(filesystem))
     }
@@ -57,42 +65,62 @@ impl VirtualFileSystem {
 impl FileSystem for VirtualFileSystem {
     type FileHandle = VirtualFileHandle;
 
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn exists(&self, path: &str) -> FileSystemResult<bool> {
         DynamicFileSystem::exists(self.0.as_ref(), path)
     }
 
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn is_file(&self, path: &str) -> FileSystemResult<bool> {
         DynamicFileSystem::is_file(self.0.as_ref(), path)
     }
 
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn is_directory(&self, path: &str) -> FileSystemResult<bool> {
         DynamicFileSystem::is_directory(self.0.as_ref(), path)
     }
 
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn filesize(&self, path: &str) -> FileSystemResult<u64> {
         DynamicFileSystem::filesize(self.0.as_ref(), path)
     }
 
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn create_directory(&self, path: &str) -> FileSystemResult<()> {
         DynamicFileSystem::create_directory(self.0.as_ref(), path)
     }
 
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn create_directory_all(&self, path: &str) -> FileSystemResult<()> {
         DynamicFileSystem::create_directory_all(self.0.as_ref(), path)
     }
 
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn list_directory<'a>(&self, path: &str) -> FileSystemResult<Vec<String>> {
         DynamicFileSystem::list_directory(self.0.as_ref(), path)
     }
 
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn remove_directory(&self, path: &str) -> FileSystemResult<()> {
         DynamicFileSystem::remove_directory(self.0.as_ref(), path)
     }
 
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn remove_directory_all(&self, path: &str) -> FileSystemResult<()> {
         DynamicFileSystem::remove_directory_all(self.0.as_ref(), path)
     }
 
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn create_file(&self, path: &str) -> FileSystemResult<Self::FileHandle> {
         Ok(VirtualFileHandle(DynamicFileSystem::create_file(
             self.0.as_ref(),
@@ -100,6 +128,8 @@ impl FileSystem for VirtualFileSystem {
         )?))
     }
 
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn open_file(&self, path: &str) -> FileSystemResult<Self::FileHandle> {
         Ok(VirtualFileHandle(DynamicFileSystem::open_file(
             self.0.as_ref(),
@@ -107,6 +137,8 @@ impl FileSystem for VirtualFileSystem {
         )?))
     }
 
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn remove_file(&self, path: &str) -> FileSystemResult<()> {
         DynamicFileSystem::remove_file(self.0.as_ref(), path)
     }
@@ -122,52 +154,75 @@ impl std::fmt::Debug for VirtualFileHandle {
 }
 
 impl Read for VirtualFileHandle {
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         Read::read(self.0.as_mut(), buf)
     }
 }
 
 impl Write for VirtualFileHandle {
+    /// Write Data to a `VirtualFilesystem` `FileHandle`
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         Write::write(self.0.as_mut(), buf)
     }
 
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn flush(&mut self) -> std::io::Result<()> {
         Write::flush(self.0.as_mut())
     }
 }
 
 impl Seek for VirtualFileHandle {
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
         Seek::seek(self.0.as_mut(), pos)
     }
 }
 
 impl FileHandle for VirtualFileHandle {
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn path(&self) -> &str {
         FileHandle::path(self.0.as_ref())
     }
 
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn get_size(&self) -> FileSystemResult<u64> {
         FileHandle::get_size(self.0.as_ref())
     }
 
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn set_size(&mut self, new_size: u64) -> FileSystemResult<()> {
         FileHandle::set_size(self.0.as_mut(), new_size)
     }
 
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn sync_all(&mut self) -> FileSystemResult<()> {
         FileHandle::sync_all(self.0.as_mut())
     }
 
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn sync_data(&mut self) -> FileSystemResult<()> {
         FileHandle::sync_data(self.0.as_mut())
     }
 
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn get_lock_status(&self) -> FileSystemResult<FileLockMode> {
         FileHandle::get_lock_status(self.0.as_ref())
     }
 
+    #[inline]
+    #[tracing::instrument(level = "trace")]
     fn set_lock_status(&mut self, mode: FileLockMode) -> FileSystemResult<()> {
         FileHandle::set_lock_status(self.0.as_mut(), mode)
     }

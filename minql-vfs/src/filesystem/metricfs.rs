@@ -18,22 +18,13 @@ use crate::filesystem::{DynamicFileSystem, DynamicFileSystemProvider, FileSystem
 use crate::{FileHandle, FileLockMode, FileSystem, FileSystemResult};
 use std::collections::HashMap;
 use std::io::{Read, Seek, SeekFrom, Write};
+use std::ops::AddAssign;
 use std::sync::{Arc, RwLock};
 
-#[derive(Debug, Default)]
-struct FileSystemMetrics {
-    file_metrics: HashMap<String, Arc<RwLock<FileHandleMetrics>>>,
-}
-
-#[derive(Debug, Default)]
-struct FileHandleMetrics {
-    bytes_written: u64,
-    bytes_read: u64,
-}
-
+/// Metric Collection Filesystem Wrapper
 #[derive(Debug)]
 pub struct MetricFileSystem {
-    metrics: Arc<RwLock<FileSystemMetrics>>,
+    metrics: FileSystemMetrics,
     inner: Arc<dyn DynamicFileSystem>,
 }
 
@@ -41,83 +32,85 @@ impl MetricFileSystem {
     /// Create a new Metrics FileSystem
     pub fn new<F: FileSystem>(filesystem: F) -> MetricFileSystem {
         MetricFileSystem {
-            metrics: Arc::new(RwLock::new(FileSystemMetrics::default())),
+            metrics: FileSystemMetrics::default(),
             inner: Arc::new(filesystem),
         }
+    }
+    /// Get Aggregate Filesystem metrics
+    pub fn filesystem_metrics(&self) -> MetricsData {
+        self.metrics.filesystem_metrics()
+    }
+    /// Get Individual File Metrics
+    pub fn file_metrics(&self) -> HashMap<String, MetricsData> {
+        self.metrics.file_metrics()
     }
 }
 
 impl FileSystem for MetricFileSystem {
     type FileHandle = MetricsFileHandle;
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn exists(&self, path: &str) -> FileSystemResult<bool> {
         DynamicFileSystem::exists(self.inner.as_ref(), path)
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn is_file(&self, path: &str) -> FileSystemResult<bool> {
         DynamicFileSystem::is_file(self.inner.as_ref(), path)
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn is_directory(&self, path: &str) -> FileSystemResult<bool> {
         DynamicFileSystem::is_directory(self.inner.as_ref(), path)
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn filesize(&self, path: &str) -> FileSystemResult<u64> {
         DynamicFileSystem::filesize(self.inner.as_ref(), path)
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn create_directory(&self, path: &str) -> FileSystemResult<()> {
         DynamicFileSystem::create_directory(self.inner.as_ref(), path)
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn create_directory_all(&self, path: &str) -> FileSystemResult<()> {
         DynamicFileSystem::create_directory_all(self.inner.as_ref(), path)
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn list_directory<'a>(&self, path: &str) -> FileSystemResult<Vec<String>> {
         DynamicFileSystem::list_directory(self.inner.as_ref(), path)
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn remove_directory(&self, path: &str) -> FileSystemResult<()> {
         DynamicFileSystem::remove_directory(self.inner.as_ref(), path)
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn remove_directory_all(&self, path: &str) -> FileSystemResult<()> {
         DynamicFileSystem::remove_directory_all(self.inner.as_ref(), path)
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn create_file(&self, path: &str) -> FileSystemResult<Self::FileHandle> {
-        let mut lock = self.metrics.write().expect("mutex poisoned");
-        let mut metrics = lock.file_metrics.entry(path.to_string()).or_default();
-        let mut file = DynamicFileSystem::open_file(self.inner.as_ref(), path)?;
         Ok(MetricsFileHandle {
-            metrics: metrics.clone(),
-            inner: file,
+            metrics: self.metrics.initialize_file(path),
+            inner: DynamicFileSystem::create_file(self.inner.as_ref(), path)?,
         })
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn open_file(&self, path: &str) -> FileSystemResult<Self::FileHandle> {
-        let mut lock = self.metrics.write().expect("mutex poisoned");
-        let mut metrics = lock.file_metrics.entry(path.to_string()).or_default();
-        let mut file = DynamicFileSystem::open_file(self.inner.as_ref(), path)?;
         Ok(MetricsFileHandle {
-            metrics: metrics.clone(),
-            inner: file,
+            metrics: self.metrics.initialize_file(path),
+            inner: DynamicFileSystem::open_file(self.inner.as_ref(), path)?,
         })
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn remove_file(&self, path: &str) -> FileSystemResult<()> {
         DynamicFileSystem::remove_file(self.inner.as_ref(), path)
     }
@@ -125,7 +118,7 @@ impl FileSystem for MetricFileSystem {
 
 /// Virtual File Handle
 pub struct MetricsFileHandle {
-    metrics: Arc<RwLock<FileHandleMetrics>>,
+    metrics: FileHandleMetrics,
     inner: Box<dyn FileHandle>,
 }
 
@@ -136,66 +129,143 @@ impl std::fmt::Debug for MetricsFileHandle {
 }
 
 impl Read for MetricsFileHandle {
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        Read::read(self.inner.as_mut(), buf)
+        let rv = Read::read(self.inner.as_mut(), buf)?;
+        self.metrics.read_bytes(rv as u64);
+        Ok(rv)
     }
 }
 
 impl Write for MetricsFileHandle {
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        Write::write(self.inner.as_mut(), buf)
+        let rv = Write::write(self.inner.as_mut(), buf)?;
+        self.metrics.write_bytes(rv as u64);
+        Ok(rv)
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn flush(&mut self) -> std::io::Result<()> {
         Write::flush(self.inner.as_mut())
     }
 }
 
 impl Seek for MetricsFileHandle {
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
         Seek::seek(self.inner.as_mut(), pos)
     }
 }
 
 impl FileHandle for MetricsFileHandle {
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn path(&self) -> &str {
         FileHandle::path(self.inner.as_ref())
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn get_size(&self) -> FileSystemResult<u64> {
         FileHandle::get_size(self.inner.as_ref())
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn set_size(&mut self, new_size: u64) -> FileSystemResult<()> {
         FileHandle::set_size(self.inner.as_mut(), new_size)
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn sync_all(&mut self) -> FileSystemResult<()> {
         FileHandle::sync_all(self.inner.as_mut())
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn sync_data(&mut self) -> FileSystemResult<()> {
         FileHandle::sync_data(self.inner.as_mut())
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn get_lock_status(&self) -> FileSystemResult<FileLockMode> {
         FileHandle::get_lock_status(self.inner.as_ref())
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     fn set_lock_status(&mut self, mode: FileLockMode) -> FileSystemResult<()> {
         FileHandle::set_lock_status(self.inner.as_mut(), mode)
     }
+}
+
+/// Collection of Metrics for FileSystem
+#[derive(Debug, Default)]
+struct FileSystemMetrics {
+    inner: Arc<RwLock<HashMap<String, FileHandleMetrics>>>,
+}
+
+impl FileSystemMetrics {
+    /// Get Aggregate `FileSystem` metrics
+    fn filesystem_metrics(&self) -> MetricsData {
+        let mut metrics = MetricsData::default();
+        for metric in self.inner.read().expect("Mutex Poisoned").values() {
+            metrics.bytes_read += metric.bytes_read();
+            metrics.bytes_written += metric.bytes_written();
+        }
+        metrics
+    }
+    /// Get file `MetricsData`
+    fn file_metrics(&self) -> HashMap<String, MetricsData> {
+        let mut metrics = HashMap::new();
+        for (path, metric) in self.inner.read().expect("Mutex Poisoned").iter() {
+            metrics.insert(path.clone(), metric.metrics());
+        }
+        metrics
+    }
+    /// Initialize a file, no-op if it already exists
+    fn initialize_file(&self, path: &str) -> FileHandleMetrics {
+        self.inner
+            .write()
+            .expect("Mutex Poisoned")
+            .entry(path.to_string())
+            .or_default()
+            .clone()
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+struct FileHandleMetrics {
+    inner: Arc<RwLock<MetricsData>>,
+}
+
+impl FileHandleMetrics {
+    fn metrics(&self) -> MetricsData {
+        self.inner.read().expect("Mutex Poisoned").clone()
+    }
+    fn bytes_read(&self) -> u64 {
+        self.inner.read().expect("Mutex Poisoned").bytes_read
+    }
+    fn bytes_written(&self) -> u64 {
+        self.inner.read().expect("Mutex Poisoned").bytes_written
+    }
+    fn read_bytes(&self, bytes: u64) {
+        self.inner
+            .write()
+            .expect("Mutex Poisoned")
+            .bytes_read
+            .add_assign(bytes);
+    }
+    fn write_bytes(&self, bytes: u64) {
+        self.inner
+            .write()
+            .expect("Mutex Poisoned")
+            .bytes_written
+            .add_assign(bytes);
+    }
+}
+
+/// Metrics Data
+#[derive(Clone, Debug, Default)]
+pub struct MetricsData {
+    bytes_written: u64,
+    bytes_read: u64,
 }
 
 #[cfg(test)]
